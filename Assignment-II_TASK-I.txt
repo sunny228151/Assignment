@@ -1,0 +1,62 @@
+Assignment-II:
+  TASK-I:
+
+
+from flask import Flask, request, jsonify
+import socket
+import whois
+import tldextract
+
+app = Flask(__name__)
+
+@app.route('/')
+def analyze_website():
+  """Analyzes a website and returns domain and asset information."""
+  url = request.args.get('url')
+  if not url:
+    return jsonify({'error': 'Missing required parameter: url'}), 400
+
+  try:
+    # Extract domain information
+    extracted_url = tldextract.extract(url)
+    domain = extracted_url.domain
+    ip = socket.gethostbyname(domain)
+
+    # Get whois information
+    w = whois.whois(domain)
+    organization = w.org if w.org else "NA"
+    asn = w.asn if w.asn else "NA"
+    location = w.country if w.country else "NA"
+    isp = w.netname if w.netname else "NA"
+
+    # Analyze assets (limited implementation for demonstration)
+    asset_domains = {"javascripts": [], "stylesheets": [], "images": [], "iframes": [], "anchors": []}
+    # You can use libraries like beautifulsoup4 for a more comprehensive analysis
+    # This example retrieves only the first encountered instance of each asset type
+
+    # ... (code to parse HTML and extract asset URLs)
+    # For example:
+    # from bs4 import BeautifulSoup
+    # response = requests.get(url)
+    # soup = BeautifulSoup(response.text, 'html.parser')
+    # for script in soup.find_all('script', src=True):
+    #   asset_domains["javascripts"].append(urlparse(script['src']).netloc)
+    # ...
+
+    return jsonify({
+        "info": {
+            "ip": ip,
+            "isp": isp,
+            "organization": organization,
+            "asn": asn,
+            "location": location
+        },
+        "subdomains": [extracted_url.subdomain],  # Currently retrieves only the main subdomain
+        "asset_domains": asset_domains
+    })
+
+  except Exception as e:
+    return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+  app.run(debug=True)

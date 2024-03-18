@@ -1,0 +1,91 @@
+Assignment-II:
+   TASk-II:
+
+from flask import Flask, request, jsonify
+from flask_socketio import SocketIO, emit
+import socket
+import whois
+import tldextract
+from threading import Thread
+
+app = Flask(__name__)
+socketio = SocketIO(app)
+
+active_sessions = {}  # Dictionary to store website analysis sessions
+
+@app.route('/')
+def index():
+  return app.send_static_file('index.html')  # Serve a basic HTML page for WebSocket connection
+
+@socketio.on('connect')
+def handle_connect():
+  print('Client connected')
+
+@socketio.on('disconnect')
+def handle_disconnect():
+  print('Client disconnected')
+  # Remove session data for the disconnected client
+  client_id = request.sid
+  if client_id in active_sessions:
+    del active_sessions[client_id]
+
+@socketio.on('message')
+def handle_message(data):
+  client_id = request.sid
+  if not data.get('url'):
+    emit('message', {'error': 'Missing required field: url'}, to=client_id)
+    return
+
+  url = data['url']
+  if client_id not in active_sessions:
+    active_sessions[client_id] = {'url': url}
+    emit('message', {'data': f"Session created for {url}"}, to=client_id)
+  else:
+    # Process operation requests based on the session's URL
+    operation = data.get('operation')
+    if operation == 'get_info':
+      process_get_info(client_id)
+    elif operation == 'get_subdomains':
+      process_get_subdomains(client_id)
+    elif operation == 'get_asset_domains':
+      process_get_asset_domains(client_id)
+    else:
+      emit('message', {'error': 'Invalid operation'}, to=client_id)
+
+def process_get_info(client_id):
+  url = active_sessions[client_id]['url']
+  # Implement domain information retrieval logic here (same as before)
+  # ...
+  info_data = {
+      "ip": ip,
+      "isp": isp,
+      "organization": organization,
+      "asn": asn,
+      "location": location
+  }
+  emit('message', {'data': info_data}, to=client_id)
+
+def process_get_subdomains(client_id):
+  url = active_sessions[client_id]['url']
+  # Implement subdomain extraction logic here (placeholder)
+  # ...
+  subdomain_data = [extracted_url.subdomain]  # Currently retrieves only the main subdomain
+  emit('message', {'data': subdomain_data}, to=client_id)
+
+def process_get_asset_domains(client_id):
+  url = active_sessions[client_id]['url']
+  # Implement asset analysis logic here (placeholder)
+  # ...
+  asset_data = {"javascripts": [], "stylesheets": [], "images": [], "iframes": [], "anchors": []}
+  emit('message', {'data': asset_data}, to=client_id)
+
+# Function to run website analysis in a separate thread (optional for performance)
+def analyze_website(client_id, url):
+  # Implement website analysis logic here using threads
+  # ...
+  # Update session data with analysis results
+  # ...
+
+if __name__ == '__main__':
+  # ... (consider running the application with eventlet or gevent for efficient WebSocket handling)
+  socketio.run(app)

@@ -1,0 +1,31 @@
+Assignment-I:
+ TASK-II:
+
+upstream responder1 {
+  server responder1:80;  # Replace with the actual port your Responder 1 container is running on
+}
+
+server {
+  listen 80;
+
+  location /responder1 {
+    proxy_pass http://responder1;
+  }
+}
+
+upstream responder2 {
+  server responder2:80;  # Replace with the actual port your Responder 2 container is running on
+}
+
+server {
+  listen 80;
+
+  location /responder2 {
+    proxy_pass http://responder2;
+  }
+}
+
+
+Bash
+
+docker run -d -p 80:80 --name nginx-proxy -v $(pwd)/nginx.conf:/etc/nginx/nginx.conf:ro nginx:latest

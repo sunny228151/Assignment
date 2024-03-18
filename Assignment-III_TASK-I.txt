@@ -1,0 +1,121 @@
+Assignment-III:
+  TASk-I:
+
+manifest.json:
+JSON
+{
+  "manifest_version": 3,
+  "name": "Hyperlink Tracker",
+  "version": "1.0",
+  "description": "Tracks and displays hyperlinks from visited webpages",
+  "permissions": ["storage", "activeTab"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}
+
+background.js:
+JavaScript
+chrome.storage.local.get(['visitedSites', 'totalLinks'], (data) => {
+  let visitedSites = data.visitedSites || {};
+  let totalLinks = data.totalLinks || 0;
+
+  chrome.webNavigation.onCompleted.addListener((details) => {
+    if (details.frameId === 0) { // Only track top-level frames
+      chrome.tabs.executeScript(details.tabId, { file: 'content.js' });
+    }
+  });
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'addLink') {
+      const { url, hostname } = message.data;
+      visitedSites[hostname] = visitedSites[hostname] || {};
+      visitedSites[hostname][url] = visitedSites[hostname][url] ? visitedSites[hostname][url] + 1 : 1;
+      totalLinks++;
+      chrome.storage.local.set({ visitedSites, totalLinks });
+    }
+  });
+});
+
+content.js:
+JavaScript
+const links = document.querySelectorAll('a[href]');
+links.forEach(link => {
+  if (link.href && !link.href.startsWith('#')) {
+    chrome.runtime.sendMessage({ action: 'addLink', data: { url: link.href, hostname: location.hostname } });
+  }
+});
+
+// MutationObserver to track dynamically added links (optional)
+const observer = new MutationObserver(mutations => {
+  mutations.forEach(mutation => {
+    const addedNodes = Array.from(mutation.addedNodes);
+    addedNodes.forEach(node => {
+      if (node.nodeType === Node.ELEMENT_NODE && node.tagName.toLowerCase() === 'a') {
+        const link = node.querySelector('a[href]');
+        if (link && link.href && !link.href.startsWith('#')) {
+          chrome.runtime.sendMessage({ action: 'addLink', data: { url: link.href, hostname: location.hostname } });
+        }
+      }
+    });
+  });
+});
+
+observer.observe(document.body, { childList: true, subtree: true });
+
+popup.html:
+HTML
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hyperlink Tracker</title>
+</head>
+<body>
+  <h1>Hyperlink Tracker</h1>
+  <p>Total Visited Sites: <span id="totalSites"></span></p>
+  <p>Total Hyperlinks: <span id="totalLinks"></span></p>
+  <button id="showDetails">Show More Details</button>
+  <script src="popup.js"></script>
+</body>
+</html>
+
+popup.js:
+JavaScript
+document.getElementById('showDetails').addEventListener('click', () => {
+  chrome.tabs.create({ url: 'details.html' });
+});
+
+chrome.storage.local.get(['totalSites', 'visitedSites'], (data) => {
+  document.getElementById('totalSites').textContent = Object.keys(data.visitedSites || {}).length;
+  document.getElementById('totalLinks').textContent = data.totalLinks || 0;
+});
+
+details.html:
+HTML
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Hyperlink Details</title>
+</head>
+<body>
+  <h1>Hyperlink Details</h1>
+  <table id="linkTable"></table>
+  <script src="details.js"></script>
+</body>
+</html>
+
+details.js:
+JavaScript
+const tableBody = document.getElementById('linkTable').getElementsByTagName('tbody')[0];
+
+chrome.storage.
+

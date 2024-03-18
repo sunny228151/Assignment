@@ -1,0 +1,106 @@
+Assignment-III:
+  TASK_II:
+
+Chrome Extension (manifest.json):
+JSON
+{
+  "manifest_version": 3,
+  "name": "Hyperlink Tracker (Native Messaging)",
+  "version": "1.1",
+  "description": "Tracks hyperlinks and logs data to SQLite via native messaging",
+  "permissions": ["storage", "activeTab"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "native_messaging": [
+    {
+      "name": "hyperlink_tracker_native_host"
+    }
+  ]
+}
+
+background.js:
+JavaScript
+chrome.storage.local.get(['visitedSites', 'totalLinks'], (data) => {
+  let visitedSites = data.visitedSites || {};
+  let totalLinks = data.totalLinks || 0;
+
+  chrome.webNavigation.onCompleted.addListener((details) => {
+    if (details.frameId === 0) { // Only track top-level frames
+      chrome.tabs.executeScript(details.tabId, { file: 'content.js' });
+    }
+  });
+
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'addLink') {
+      const { url, hostname } = message.data;
+      visitedSites[hostname] = visitedSites[hostname] || {};
+      visitedSites[hostname][url] = visitedSites[hostname][url] ? visitedSites[hostname][url] + 1 : 1;
+      totalLinks++;
+      chrome.storage.local.set({ visitedSites, totalLinks });
+
+      // Send data to native messaging script
+      chrome.runtime.sendMessage(
+        'hyperlink_tracker_native_host',
+        { action: 'logLink', data: { url, hostname, count: visitedSites[hostname][url] } },
+        (response) => {
+          console.log('Native messaging response:', response);
+        }
+      );
+    }
+  });
+});
+
+content.js:
+JavaScript
+const links = document.querySelectorAll('a[href]');
+links.forEach(link => {
+  if (link.href && !link.href.startsWith('#')) {
+    chrome.runtime.sendMessage({ action: 'addLink', data: { url: link.href, hostname: location.hostname } });
+  }
+});
+
+// MutationObserver to track dynamically added links (optional)
+// ... (similar to previous content.js)
+
+Python (hyperlink_tracker_native_host.py):
+Python
+import json
+import sqlite3
+
+# Database connection and table creation (modify as needed)
+conn = sqlite3.connect('hyperlink_data.db')
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS links (
+              url TEXT PRIMARY KEY,
+              hostname TEXT,
+              count INTEGER
+)''')
+
+def handle_message(message):
+  if message['action'] == 'logLink':
+    data = message['data']
+    try:
+      c.execute('''INSERT OR REPLACE INTO links (url, hostname, count) VALUES (?, ?, ?)''', (data['url'], data['hostname'], data['count']))
+      conn.commit()
+      return {'status': 'success'}
+    except Exception as e:
+      return {'status': 'error', 'message': str(e)}
+
+def main():
+  while True:
+    message = json.loads(input())
+    response = handle_message(message)
+    print(json.dumps(response))
+
+if __name__ == '__main__':
+  main()
